@@ -12,10 +12,10 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: eaec27c1cd2d49f1b806b0d092cc29cc, type: 3}
   m_Name: Player Settings
   m_EditorClassIdentifier: 
-  RunningMovementSpeed: 4
   MovementSpeed: 3
-  MovementSpeedSmoothTime: 0.2
-  UsingItemSpeedReduction: 0.1
+  MovementSpeedSmoothTime: 5
+  UsingItemSpeedReduction: 0.4
   RotationSpeed: 15
   MinRotationDistance: 30
+  DrinkPotionDelay: 0
   HealthPotionRegenValue: 1

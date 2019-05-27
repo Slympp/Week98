@@ -1,7 +1,12 @@
 using System.Collections;
 using System.Collections.Generic;
+using System.Reflection;
+using Entities.Interactable;
+using Game;
 using Items;
 using Settings;
+using UI;
+using UI.Player;
 using UnityEngine;
 
 namespace Entities.Player {
@@ -10,129 +15,104 @@ namespace Entities.Player {
     public class PlayerEntityController : BaseEntity {
 
         [SerializeField] private PlayerSettings PlayerSettings;
-
-        [SerializeField] private BaseItem ActiveItem;
-        [SerializeField] private List<GameObject> ItemList;
-
-        [SerializeField] protected Transform RightHandRoot;
-        [SerializeField] protected Transform LeftHandRoot;
-
-        private Dictionary<BaseItem, GameObject> _instantiatedItems;
         
         private CharacterController _characterController;
         private PlayerTargetingController _targetingController;
+        private PlayerEquipmentController _equipmentController;
+        private CursorController _cursorController;
         private Camera _camera;
 
-        private int _healthPotionsCount;
+        private int _healthPotionsCount = 3;
         private float _remainingCooldown;
         private bool _usingItem;
 
+        private static PlayerEntityController _instance;
 
         void Awake() {
-            base.Awake();
             
-            InitializeItems();
+            if (_instance != null)
+                DestroyImmediate(this);
+
+            _instance = this;
+
+            base.Awake();
             
             _camera = Camera.main;
             _characterController = GetComponent<CharacterController>();
             _targetingController = GetComponent<PlayerTargetingController>();
+            _equipmentController = GetComponent<PlayerEquipmentController>();
+            _cursorController = GetComponent<CursorController>();
+
+            if (_levelManager) {
+                _uiController = _levelManager.GetComponent<PlayerUIController>();
+                _uiController.InitHealthBar(maxHealth, currentHealth);
+                _uiController.UpdatePotionsAmount(_healthPotionsCount);
+            }
         }
         
         void Update() {
 
-            Move(PlayerInputController.MovementInput);
-
-            Rotate();
-
-            if (PlayerInputController.EquipFirstSlot) {
-                SwapActiveItem(0);
-            } else if (PlayerInputController.EquipSecondSlot) {
-                SwapActiveItem(1);
-            } else if (PlayerInputController.EquipThirdSlot) {
-                SwapActiveItem(2);
-            } else if (PlayerInputController.EquipFourthSlot) {
-                SwapActiveItem(3);
-            } else if (PlayerInputController.UseActiveItem && _remainingCooldown <= 0 ) {
-                UseActiveItem(); 
-            } else if (PlayerInputController.Shielding) {
-                Shield();
-            } else if (PlayerInputController.ConsumingPotion) {
-                ConsumePotion();
-            } else {
-                // TODO: reset consuming potion progression
-            }
-        }
-
-        public BaseItem GetActiveItem() {
-            return ActiveItem;
-        }
-
-        private void InitializeItems() {
-            _instantiatedItems = new Dictionary<BaseItem, GameObject>();
-            foreach (GameObject item in ItemList) {
-                InstantiateNewItem(item);
-            }
-        }
-
-        private void InstantiateNewItem(GameObject gameObject) {
-            if (!gameObject)
+            if (State == ActiveState.Dead) {
+                _equipmentController.CanSwapItem = false;
                 return;
+            }
 
-            BaseItem item = gameObject.GetComponent<BaseItem>();
-            if (!item)
+            if (State != ActiveState.Defending) {
+                if (State != ActiveState.Shooting && State != ActiveState.Drinking) {
+                    Move(PlayerInputController.MovementInput);
+                }
+                Rotate();
+            }
+
+            if (Defend())
                 return;
             
-            GameObject newItem = Instantiate(item.gameObject, item.IsRightHand() ? RightHandRoot : LeftHandRoot);
-            newItem.SetActive(false);
-            _instantiatedItems.Add(item, newItem);
+            if (PlayerInputController.DrinkPotion) {
+                ConsumePotion();
+            } else if (PlayerInputController.UseActiveItem && _remainingCooldown <= 0
+                && State == ActiveState.Default) {
+                UseActiveItem(); 
+            }
         }
 
-        private GameObject GetInstantiatedItem(BaseItem item) {
-            if (_instantiatedItems.ContainsKey(item)) {
-                return _instantiatedItems[item];
-            }
-            return null;
+        public static PlayerEntityController Get() {
+            return _instance;
         }
 
         protected override void Move(Vector2 movementDelta) {
             
             if (!_characterController)
                 return;
-            
-            
-            
-            Vector3 moveDirection = transform.TransformDirection(new Vector3(movementDelta.x, 0, movementDelta.y));
 
-            bool isMovingForward = movementDelta.y >= 0.8 && Mathf.Abs(movementDelta.x) <= 0.5f;
-            bool isRunning = PlayerInputController.IsRunning && isMovingForward;
-            float targetSpeed = (isRunning ? PlayerSettings.RunningMovementSpeed : 
-                                    PlayerSettings.MovementSpeed) 
-                                * (isMovingForward ? 1 : 0.5f)
-                                * (_usingItem ? PlayerSettings.UsingItemSpeedReduction : 1)
+            Vector3 moveDirection = new Vector3(movementDelta.x, 0, movementDelta.y);
+
+            float targetSpeed = PlayerSettings.MovementSpeed 
+                                * GetSpeedModifier()
                                 * movementDelta.magnitude;
 
-            currentSpeed = Mathf.SmoothDamp(currentSpeed, targetSpeed, ref speedSmoothVelocity,
-                PlayerSettings.MovementSpeedSmoothTime);
-            
-            _animationController.UpdateMovementAnimation(movementDelta, isRunning);
-            
-            moveDirection *= currentSpeed;
+            currentSpeed = Mathf.SmoothDamp(currentSpeed, targetSpeed, ref speedSmoothVelocity, PlayerSettings.MovementSpeedSmoothTime * Time.deltaTime);
 
-            _characterController.Move(moveDirection * Time.deltaTime);
+            moveDirection *= currentSpeed;
+            
+            Vector3 localVelocity = transform.InverseTransformDirection(_characterController.velocity);
+//            if (_state == ActiveState.VerticalMovementLocked && Mathf.Abs(localVelocity.x) >= PlayerSettings.VerticalClampMaxAngle)
+//                return;
+            
+            _animationController.UpdateMovementAnimation(localVelocity);
+            _characterController.Move(Vector3.ClampMagnitude(moveDirection, currentSpeed) * Time.deltaTime);
         }
 
         protected override void Rotate() {
 
             Vector3 entityPosition = transform.position;
-            
-            var pos = _camera.WorldToScreenPoint(entityPosition);
-            var dir = Input.mousePosition - pos;
+            Vector3 position = _camera.WorldToScreenPoint(entityPosition);
+            Vector3 direction = Input.mousePosition - position;
 
-            if (Vector3.Distance(dir, entityPosition) <= PlayerSettings.MinRotationDistance)
+            if (Vector3.Distance(direction, entityPosition) <= PlayerSettings.MinRotationDistance)
                 return;
             
-            float angle = Mathf.Atan2(dir.y, dir.x) * Mathf.Rad2Deg - 90;
-            float rotationSpeed = PlayerSettings.RotationSpeed * (_usingItem ? PlayerSettings.UsingItemSpeedReduction : 1);
+            float angle = Mathf.Atan2(direction.y, direction.x) * Mathf.Rad2Deg - 90;
+            float rotationSpeed = PlayerSettings.RotationSpeed * GetSpeedModifier();
             
             transform.rotation = Quaternion.Slerp(
                 transform.rotation,
@@ -140,14 +120,101 @@ namespace Entities.Player {
                 Time.deltaTime * rotationSpeed);
         }
 
-        private void UseActiveItem() {
-            if (ActiveItem != null && _targetingController != null && _targetingController.currentTarget != null) {
+        public override IEnumerator TakeDamage(int value) {
+            yield return DecreaseHealth(value);
 
-                _usingItem = true;
-                _animationController.PlayAnimation(ActiveItem.GetRandomAnimation());
-                ActiveItem.Use(_targetingController.currentTarget);
-                StartCoroutine(nameof(StartCooldown), ActiveItem);
+            if (State == ActiveState.Dead) {
+                GameManager.Get().LoadGameOver();
             }
+        }
+        
+        private float GetSpeedModifier() {
+            return State != ActiveState.Default ? PlayerSettings.UsingItemSpeedReduction : 1;
+        }
+
+        private void UseActiveItem() {
+            
+            BaseItem activeItem = _equipmentController.GetActiveItem();
+            if (activeItem != null && _targetingController != null) {
+
+                if (activeItem.DoesRequireTarget() && _targetingController.GetTarget() == null)
+                    return;
+
+                bool hasDelay = !activeItem.GetCooldown().Equals(0);
+                _animationController.PlayAnimation(activeItem.GetAnimation(), !hasDelay);
+                StartCoroutine(nameof(StartCooldown), activeItem);
+                State = activeItem.GetState();
+
+                if (_targetingController.GetTarget() == null)
+                    return;
+
+                InteractableEntityController interactableTarget = _targetingController.GetTarget();
+                if (activeItem.DoesRequireTarget() && interactableTarget == null)
+                    return;
+
+                if (hasDelay) {
+                    StartCoroutine(nameof(DelayUse), new DelayUseParams {
+                        item = activeItem,
+                        target = interactableTarget
+                    });
+                } else {
+                    activeItem.Use(transform, interactableTarget);
+                }
+            }
+
+            // RESET PUSH/PULL ACTION
+//            if (_state == ActiveState.VerticalMovementLocked) {
+//                _state = ActiveState.Default;
+//            }
+        }
+        
+        private bool Defend() {
+
+            if (!_equipmentController.HasShield)
+                return false;
+
+            BaseItem activeItem = _equipmentController.GetActiveItem();
+            
+            bool isShielding = PlayerInputController.Shielding
+                               && (State != ActiveState.Shooting || State != ActiveState.Attacking)
+                               && activeItem != null 
+                               && (activeItem.GetItemType() == BaseItem.Type.Sword || 
+                                   activeItem.GetItemType() == BaseItem.Type.Torch);
+
+            if (isShielding && State != ActiveState.Defending) {
+                State = ActiveState.Defending;
+                _equipmentController.ToggleShield(true);
+                _cursorController.UpdateCursor(activeItem.GetItemType(), false, true);
+            } else if (!isShielding && State == ActiveState.Defending) {
+                State = ActiveState.Default;
+                _equipmentController.ToggleShield(false);
+                _cursorController.UpdateCursor(activeItem.GetItemType(), false);
+            }
+
+            _animationController.UpdateDefense(isShielding);
+
+            return isShielding;
+        }
+
+        private void ConsumePotion() {
+            if (_healthPotionsCount > 0) {
+                _healthPotionsCount--;
+
+                State = ActiveState.Drinking;
+                _animationController.PlayDrinkAnimation();
+                StartCoroutine(nameof(PotionHealing));
+            }
+        }
+
+        private IEnumerator PotionHealing() {
+            float elapsed = 0;
+            while (elapsed < PlayerSettings.DrinkPotionDelay) {
+                elapsed += Time.deltaTime;
+                yield return new WaitForEndOfFrame();
+            }
+            Heal(PlayerSettings.HealthPotionRegenValue);
+            _uiController.UpdatePotionsAmount(_healthPotionsCount);
+            State = ActiveState.Default;
         }
 
         private IEnumerator StartCooldown(BaseItem item) {
@@ -157,42 +224,21 @@ namespace Entities.Player {
                 yield return new WaitForEndOfFrame();
             }
             _remainingCooldown = 0;
-            _usingItem = false;
+            State = ActiveState.Default;
         }
 
-        private void SwapActiveItem(int slot) {
-            if (slot < 0 || slot >= ItemList.Count || ItemList[slot] == null) {
-                Debug.Log($"Failed to equip item {slot}");
-                return;
+        private IEnumerator DelayUse(DelayUseParams p) {
+            float elapsed = 0;
+            while (elapsed <= p.item.GetDelay()) {
+                elapsed += Time.deltaTime;
+                yield return new WaitForEndOfFrame();
             }
-
-            BaseItem itemComponent = ItemList[slot].GetComponent<BaseItem>();
-
-            if (ActiveItem != null && itemComponent == ActiveItem) {
-                Debug.Log($"{ItemList[slot]} is already active");
-                return;
-            }
-
-            if (ActiveItem != null) {
-                GetInstantiatedItem(ActiveItem)?.SetActive(false);
-            }
-                
-            ActiveItem = itemComponent;
-            GetInstantiatedItem(ActiveItem)?.SetActive(true);
-            Debug.Log($"{ActiveItem} has been equiped");
+            p.item.Use(transform, p.target);
         }
 
-        private void Shield() {
-            
-        }
-
-        private void ConsumePotion() {
-            // TODO: make consuming progress system
-            
-            if (_healthPotionsCount > 0) {
-                Heal(PlayerSettings.HealthPotionRegenValue);
-                _healthPotionsCount--;
-            }
+        struct DelayUseParams {
+            public BaseItem item;
+            public InteractableEntityController target;
         }
     }
 }

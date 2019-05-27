@@ -1,6 +1,9 @@
+using System;
 using System.Collections.Generic;
-using UnityEditor.ShaderGraph;
+using Entities.Interactable;
+using Entities.Player;
 using UnityEngine;
+using Random = UnityEngine.Random;
 
 namespace Items {
     public abstract class BaseItem : MonoBehaviour {
@@ -8,37 +11,56 @@ namespace Items {
         [SerializeField] protected string Name;
         [SerializeField] protected float Cooldown = 1f;
         [SerializeField] protected float Range = 1f;
-        [SerializeField] protected bool RightHand = true;
-
         [SerializeField] protected List<string> UseAnimations;
-        [SerializeField] List<int> UseAnimationsHash;
+        [SerializeField] protected Type ItemType;
+        [SerializeField] protected PlayerEntityController.ActiveState State;
+        [SerializeField] protected Hand HandType;
+        [SerializeField] protected bool RequireTarget;
+        [SerializeField] protected float UseDelay;
+        
+        protected List<int> UseAnimationsHash;
 
-        void Awake() {
-            if (UseAnimations != null && UseAnimations.Count > 0) {
-                Debug.Log("Init animations");
+        public void Init() {
+            gameObject.SetActive(false);
+            
+            if (UseAnimations != null && UseAnimations.Count != 0) {
                 UseAnimationsHash = new List<int>();
                 foreach (var anim in UseAnimations) {
                     UseAnimationsHash.Add(Animator.StringToHash(anim));
-                    Debug.Log(anim);
                 }
-                Debug.Log($"{UseAnimationsHash.Count} inited");
             }
         }
         
-        public abstract void Use(GameObject target);
+        protected int GetRandomAnimation() {
+            if (UseAnimationsHash.Count == 0) return 0;
+            
+            int randomIndex = Random.Range(0, UseAnimationsHash.Count);
+            return UseAnimationsHash[randomIndex];
+        }
+        
+        public abstract void Use(Transform player, InteractableEntityController target);
+        public abstract int GetAnimation();
 
         public string GetName() { return Name; }
         public float GetCooldown() { return Cooldown; }
+        public float GetDelay() { return UseDelay; }
         public float GetRange() { return Range; }
-        public bool IsRightHand() { return RightHand; }
+        public Type GetItemType() { return ItemType; }
+        public PlayerEntityController.ActiveState GetState() { return State; }
+        public Hand GetHandType() { return HandType; }
+        public bool DoesRequireTarget() { return RequireTarget; }
 
-        public int GetRandomAnimation() {
-            Debug.Log($"{UseAnimations.Count} anims set");
-            Debug.Log($"{UseAnimationsHash.Count} animsHash set");
-//            if (UseAnimationsHash.Count == 0) return 0;
-            return 0;
-//            int randomIndex = Random.Range(0, UseAnimationsHash.Count);
-//            return UseAnimationsHash[randomIndex];
+        public enum Type {
+            Sword = 0,
+            Torch,
+            Bow,
+            Rune
+        }
+
+        public enum Hand {
+            Right = 0,
+            Left,
+            Both
         }
     }
 }
