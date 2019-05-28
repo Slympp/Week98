@@ -13,7 +13,12 @@ MonoBehaviour:
   m_Name: Level4
   m_EditorClassIdentifier: 
   Name: Abyss
-  Procedural: 1
-  NumberOfRooms: 20
+  NumberOfRooms: 12
+  MonstersPerRoom: {x: 0, y: 0}
+  Templates: []
   Monsters: []
   Boss: {fileID: 0}
+  LevelReward: {fileID: 8558679623114929928, guid: e7d9b9fbecdda2a4a94b9f3c3da2456b,
+    type: 3}
+  RewardIcon: {fileID: 2800000, guid: edb2612d0fc370f41bd7e26ae9cfb82b, type: 3}
+  RewardDescription: 

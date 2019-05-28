@@ -1,7 +1,7 @@
 using Items;
 
 namespace Entities.Interactable.Interactions {
-    public class HittableInteraction : BaseInteraction {
+    public class SSSSSHittableInteraction : BaseInteraction {
 
         private InteractableEntityController _entityController;
 

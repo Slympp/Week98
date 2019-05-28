@@ -93,7 +93,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   Name: Sword
   Cooldown: 0.8
-  Range: 1
+  Range: 2
   UseAnimations:
   - Attack1
   - Attack2
@@ -103,7 +103,7 @@ MonoBehaviour:
   HandType: 0
   RequireTarget: 0
   UseDelay: 0.4
-  Damage: 10
+  Damage: {x: 8, y: 14}
 --- !u!1 &6771099959624885572
 GameObject:
   m_ObjectHideFlags: 0

@@ -13,7 +13,12 @@ MonoBehaviour:
   m_Name: Level3
   m_EditorClassIdentifier: 
   Name: Dark Cave
-  Procedural: 1
-  NumberOfRooms: 16
+  NumberOfRooms: 10
+  MonstersPerRoom: {x: 0, y: 0}
+  Templates: []
   Monsters: []
   Boss: {fileID: 0}
+  LevelReward: {fileID: 1745419097849588571, guid: ad8e608ac3ff9e74eb1a0e1d6fd69672,
+    type: 3}
+  RewardIcon: {fileID: 2800000, guid: 8dd0de5e75b5e494496487e860f9a204, type: 3}
+  RewardDescription: 

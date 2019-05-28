@@ -17,5 +17,5 @@ MonoBehaviour:
   UsingItemSpeedReduction: 0.4
   RotationSpeed: 15
   MinRotationDistance: 30
-  DrinkPotionDelay: 0
+  DrinkPotionDelay: 1
   HealthPotionRegenValue: 1

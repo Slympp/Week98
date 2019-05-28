@@ -13,7 +13,7 @@ namespace Settings {
         public float RotationSpeed = 1;
         public float MinRotationDistance = 30f;
 
-        public float DrinkPotionDelay;
+        public float DrinkPotionDelay = 1f;
         public int HealthPotionRegenValue = 50;
     }
 }

@@ -1,12 +1,13 @@
 ﻿using System.Collections.Generic;
-using Entities.Player;
-using Game.Level;
+using Cinemachine;
+using Entities.Interactable;
 using Settings;
 using UnityEngine;
 
-namespace Game {
+namespace Game.Level {
     public class LevelManager : MonoBehaviour {
 
+        [SerializeField] private GameObject PlayerPrefab;
         [SerializeField] private float Offset;
         [SerializeField] private float RoomSize = 15f;
 
@@ -18,12 +19,14 @@ namespace Game {
         private GameManager _gameManager;
         private LevelSettings _settings;
         private Room[,] _rooms;
+        private CinemachineVirtualCamera _vcam;
 
         private GameObject _level;
         
         void Awake() {
 
             _gameManager = GameManager.Get();
+            _vcam = GameObject.FindWithTag("VirtualCamera").GetComponent<CinemachineVirtualCamera>();
             
             if (_level != null)
                 DestroyImmediate(_level);
@@ -34,16 +37,16 @@ namespace Game {
 
         void Start() {
             if ((_settings = _gameManager.GetCurrentLevelSettings()) != null) {
-                if (_settings.Procedural) {
-                    Room currentRoom = GenerateLevel();
-                    BuildLevel(currentRoom);
-//                    Print();
-                }
+                Room currentRoom = GenerateLevel();
+                BuildLevel(currentRoom);
+                BuildPlayer(currentRoom.RoomCoordinate);
+            } else {
+                BuildPlayer(new Vector2Int(0, 0));
             }
         }
         
         private Room GenerateLevel() {
-            int gridSize = _settings.NumberOfRooms * 2 + 1;
+            int gridSize = _settings.NumberOfRooms * 3 + 1;
  
             _rooms = new Room[gridSize, gridSize];
  
@@ -54,24 +57,32 @@ namespace Game {
             List<Room> createdRooms = new List<Room> ();
             while (roomsToCreate.Count > 0 && createdRooms.Count < _settings.NumberOfRooms) {
                 Room currentRoom = roomsToCreate.Dequeue ();
-                _rooms [currentRoom.roomCoordinate.x, currentRoom.roomCoordinate.y] = currentRoom;
+                _rooms [currentRoom.RoomCoordinate.x, currentRoom.RoomCoordinate.y] = currentRoom;
                 createdRooms.Add (currentRoom);
                 AddNeighbors (currentRoom, roomsToCreate);
             }
-		
+
+            Room finalRoom = _rooms[initialRoomCoordinate.x, initialRoomCoordinate.y];
+            int maxDistance = 0;
             foreach (Room room in createdRooms) {
                 List<Vector2Int> neighborCoordinates = room.NeighborCoordinates ();
                 foreach (Vector2Int coordinate in neighborCoordinates) {
-                    Room neighbor = this._rooms [coordinate.x, coordinate.y];
+                    Room neighbor = _rooms [coordinate.x, coordinate.y];
                     if (neighbor != null) {
                         room.Connect (neighbor);
                     }
                 }
+
+                int distance = room.GetDistanceFromOrigin(initialRoomCoordinate);
+                if (distance > maxDistance) {
+                    finalRoom = room;
+                }
             }
- 
+            finalRoom.ExitRoom = true;
+
             return _rooms [initialRoomCoordinate.x, initialRoomCoordinate.y];
         }
-        
+
         private void AddNeighbors(Room currentRoom, Queue<Room> roomsToCreate) {
             List<Vector2Int> neighborCoordinates = currentRoom.NeighborCoordinates ();
             List<Vector2Int> availableNeighbors = new List<Vector2Int> ();
@@ -107,11 +118,7 @@ namespace Game {
             foreach (Room room in _rooms) {
                 if (room != null) {
                     GameObject roomObject = (GameObject)Instantiate(Resources.Load(RoomPath), _level.transform);
-                    roomObject.transform.position = new Vector3(
-                        room.roomCoordinate.x * RoomSize + room.roomCoordinate.x * Offset, 
-                        0, 
-                        room.roomCoordinate.y * RoomSize + room.roomCoordinate.y * Offset
-                    );
+                    roomObject.transform.position = CoordinatesToVector3(room.RoomCoordinate);
 
                     RoomController controller = roomObject.GetComponent<RoomController>();
                     room.InitController(controller);
@@ -120,16 +127,19 @@ namespace Game {
                     BuildWalls(controller, roomTransform);
                     BuildBridges(controller, roomTransform);
                     
-                    controller.InitDoors();
+                    controller.Init();
                     
                     if (room != currentRoom) {
-                        
-                        // TODO: Spawn monsters / Boss
-                        // TODO: Load template
-                        //                        roomObject.SetActive(false);
+
+                        SpawnMonsters(controller);
+
+                        if (!room.ExitRoom) {
+                            BuildTemplate(roomTransform);
+                        } else {
+                            // TODO: Spawn boss
+                        }
                     } else {
                         controller.Fog.SetActive(false);
-                        PlayerEntityController.Get().transform.position = roomObject.transform.position;
                     }
                 }
             }
@@ -153,17 +163,54 @@ namespace Game {
             }
         }
 
-        private void Print() {
-            string grid = "";
-            for (int y = 0; y < _rooms.GetLength(1); y++) {
-                string column = "";
-                for (int x = 0; x < _rooms.GetLength(0); x++) {
-                    column += _rooms[x, y] != null ? "R" : "X";
-                }
-                grid += column + "\n";
+        private void BuildTemplate(Transform parent) {
+            List<GameObject> templates = _gameManager.GetCurrentLevelSettings().Templates;
+            if (templates != null && templates.Count > 0) {
+                GameObject template = Instantiate(templates[(int)Random.Range(0, templates.Count)], parent);
+                float randomRotation = Random.Range(0, 4) * 90;
+                template.transform.rotation = new Quaternion(0, randomRotation, 0, 0);
             }
+        }
+
+        private void SpawnMonsters(RoomController roomController) {
+            LevelSettings settings = _gameManager.GetCurrentLevelSettings();
+
+            if (settings.Monsters.Count == 0 || settings.MonstersPerRoom == Vector2Int.zero)
+                return;
             
-            Debug.Log(grid);
+            Vector2Int range = settings.MonstersPerRoom;
+            int toSpawn = Random.Range(range.x, range.y + 1);
+            for (int i = 0; i < toSpawn; i++) {
+                int monsterIndex = Random.Range(0, settings.Monsters.Count);
+
+                GameObject monster = Instantiate(settings.Monsters[monsterIndex], GetRandomPositionInRoom(roomController.transform.position), Quaternion.identity);
+                if (monster != null) {
+                    roomController.Monsters.Add(monster.GetComponent<InteractableEntityController>());
+                    monster.SetActive(false);
+                }
+            }
+        }
+
+        private void BuildPlayer(Vector2Int coordinates) {
+            GameObject player = Instantiate(PlayerPrefab, CoordinatesToVector3(coordinates), Quaternion.identity);
+            _vcam.Follow = player.transform;
+        }
+
+        private Vector3 CoordinatesToVector3(Vector2Int roomCoordinates) {
+            return new Vector3(
+                roomCoordinates.x * RoomSize + roomCoordinates.x * Offset, 
+                0, 
+                roomCoordinates.y * RoomSize + roomCoordinates.y * Offset
+            );
+        }
+
+        private Vector3 GetRandomPositionInRoom(Vector3 roomPosition) {
+
+            // TODO: Check if position is empty !
+            float radius = RoomSize / 2;
+            float x = Random.Range(roomPosition.x - radius + 1, roomPosition.x + radius - 1);
+            float z = Random.Range(roomPosition.z - radius + 1, roomPosition.z + radius - 1);
+            return new Vector3 (x, 1, z);
         }
     }
 }

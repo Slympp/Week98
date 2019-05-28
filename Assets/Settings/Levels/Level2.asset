@@ -13,7 +13,12 @@ MonoBehaviour:
   m_Name: Level2
   m_EditorClassIdentifier: 
   Name: Cave
-  Procedural: 1
-  NumberOfRooms: 13
+  NumberOfRooms: 7
+  MonstersPerRoom: {x: 0, y: 0}
+  Templates: []
   Monsters: []
   Boss: {fileID: 0}
+  LevelReward: {fileID: 4061353418748060740, guid: b66bfea8ebb9f9c4ebd1d6e62bf9c521,
+    type: 3}
+  RewardIcon: {fileID: 2800000, guid: 295aed04542ae29468516302238a0c23, type: 3}
+  RewardDescription: Will illuminate even the darkest souls

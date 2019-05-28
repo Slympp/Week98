@@ -4738,7 +4738,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   Name: Torch
   Cooldown: 1.2
-  Range: 1
+  Range: 2
   UseAnimations:
   - Torch
   ItemType: 1
@@ -4746,7 +4746,11 @@ MonoBehaviour:
   HandType: 0
   RequireTarget: 0
   UseDelay: 0.25
-  Damage: 2
+  Damage: {x: 1, y: 2}
+  Properties:
+    TickDamage: 2
+    TickAmount: 5
+    Duration: 6
 --- !u!1 &4061452577480506526
 GameObject:
   m_ObjectHideFlags: 0

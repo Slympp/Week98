@@ -22,18 +22,12 @@ namespace Entities.Player {
         private CursorController _cursorController;
         private Camera _camera;
 
-        private int _healthPotionsCount = 3;
+        private int _healthPotionsCount;
+        private int _coinsCount;
         private float _remainingCooldown;
         private bool _usingItem;
 
-        private static PlayerEntityController _instance;
-
         void Awake() {
-            
-            if (_instance != null)
-                DestroyImmediate(this);
-
-            _instance = this;
 
             base.Awake();
             
@@ -42,15 +36,24 @@ namespace Entities.Player {
             _targetingController = GetComponent<PlayerTargetingController>();
             _equipmentController = GetComponent<PlayerEquipmentController>();
             _cursorController = GetComponent<CursorController>();
+        }
 
+        void Start() {
+            Init(_gameManager.PlayerData);
+            
             if (_levelManager) {
                 _uiController = _levelManager.GetComponent<PlayerUIController>();
                 _uiController.InitHealthBar(maxHealth, currentHealth);
                 _uiController.UpdatePotionsAmount(_healthPotionsCount);
+                _uiController.UpdateCoinsAmount(_coinsCount);
             }
         }
         
         void Update() {
+
+            if (_camera == null && (_camera = Camera.main) == null) {
+                return;
+            }
 
             if (State == ActiveState.Dead) {
                 _equipmentController.CanSwapItem = false;
@@ -75,8 +78,20 @@ namespace Entities.Player {
             }
         }
 
-        public static PlayerEntityController Get() {
-            return _instance;
+        public void Init(GameManager.SerializedPlayerData playerData) {
+            currentHealth = playerData.CurrentHealth;
+            _healthPotionsCount = playerData.HealthPotionsCount;
+            _equipmentController.Init(playerData);
+        }
+
+        public GameManager.SerializedPlayerData GetSerializedPlayerData() {
+            return new GameManager.SerializedPlayerData {
+                CurrentHealth =  currentHealth,
+                HealthPotionsCount = _healthPotionsCount,
+                CoinsCount = _coinsCount,
+                Inventory = _equipmentController.ItemList,
+                HasShield = _equipmentController.HasShield
+            };
         }
 
         protected override void Move(Vector2 movementDelta) {
@@ -95,8 +110,6 @@ namespace Entities.Player {
             moveDirection *= currentSpeed;
             
             Vector3 localVelocity = transform.InverseTransformDirection(_characterController.velocity);
-//            if (_state == ActiveState.VerticalMovementLocked && Mathf.Abs(localVelocity.x) >= PlayerSettings.VerticalClampMaxAngle)
-//                return;
             
             _animationController.UpdateMovementAnimation(localVelocity);
             _characterController.Move(Vector3.ClampMagnitude(moveDirection, currentSpeed) * Time.deltaTime);
@@ -145,12 +158,12 @@ namespace Entities.Player {
                 StartCoroutine(nameof(StartCooldown), activeItem);
                 State = activeItem.GetState();
 
-                if (_targetingController.GetTarget() == null)
-                    return;
-
-                InteractableEntityController interactableTarget = _targetingController.GetTarget();
-                if (activeItem.DoesRequireTarget() && interactableTarget == null)
-                    return;
+                InteractableEntityController interactableTarget = null;
+                if (_targetingController.GetTarget() != null) {
+                    interactableTarget = _targetingController.GetTarget();
+                    if (activeItem.DoesRequireTarget() && interactableTarget == null)
+                        return;
+                }
 
                 if (hasDelay) {
                     StartCoroutine(nameof(DelayUse), new DelayUseParams {

@@ -3,13 +3,20 @@ using Entities.Player;
 using UnityEngine;
 
 namespace Items {
-    public class BowItem : BaseItem
-    {
+    public class BowItem : WeaponItem {
+        [SerializeField] private float ProjectileSpeed = 10;
+        [SerializeField] private GameObject ArrowPrefab;
+        
+        private Transform t;
+
+        void Awake() {
+            t = transform;
+        }
+        
         public override void Use(Transform player, InteractableEntityController target) {
-            if (target == null)
-                return;
-            
-            // TODO: Fire arrow
+            GameObject arrow = Instantiate(ArrowPrefab, t.position, t.rotation * Quaternion.Euler(0, -90, 0));
+            arrow.GetComponent<BowProjectile>().Init(OnArrowImpact);
+            arrow.GetComponent<Rigidbody>().AddForce(arrow.transform.forward * ProjectileSpeed);
         }
 
         public override int GetAnimation() {
@@ -17,17 +24,15 @@ namespace Items {
         }
 
         public void OnArrowImpact(InteractableEntityController target) {
-            if (target.InteractionTypes.Contains(InteractableTypes.HITTABLE)) {
-                
-            }
-
-            if (target.InteractionTypes.Contains(InteractableTypes.TOGGLABLE)) {
-                
-            }
-            
-            if (target.InteractionTypes.Contains(InteractableTypes.SWITCHABLE)) {
-                
-            }
+            UseWeapon(target);
+//
+//            if (target.InteractionTypes.Contains(InteractableTypes.TOGGLABLE)) {
+//                
+//            }
+//            
+//            if (target.InteractionTypes.Contains(InteractableTypes.SWITCHABLE)) {
+//                
+//            }
         }
     }
 }

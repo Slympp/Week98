@@ -91,7 +91,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   Name: Bow
-  Cooldown: 1
+  Cooldown: 0.8
   Range: 10
   UseAnimations:
   - Shoot
@@ -99,4 +99,8 @@ MonoBehaviour:
   State: 2
   HandType: 1
   RequireTarget: 0
-  UseDelay: 0.5
+  UseDelay: 0.4
+  Damage: {x: 11, y: 16}
+  ProjectileSpeed: 700
+  ArrowPrefab: {fileID: 2702167345677066077, guid: 30c7578711ee59d4bba12dd0ca1388e2,
+    type: 3}

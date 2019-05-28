@@ -17,15 +17,15 @@ namespace Entities {
         protected float currentSpeed;
         protected float speedSmoothVelocity;
         
-        protected GameObject _gameManager;
+        protected GameManager _gameManager;
         protected GameObject _levelManager;
         protected BaseUIController _uiController;
         protected EntityAnimationController _animationController;
         
         protected void Awake() {
-            Spawn();
+            currentHealth = maxHealth;
             
-            _gameManager = GameManager.Get().gameObject;
+            _gameManager = GameManager.Get();
             _levelManager = GameObject.FindGameObjectWithTag("LevelManager");
             _animationController = GetComponent<EntityAnimationController>();
         }
@@ -34,24 +34,26 @@ namespace Entities {
         protected abstract void Rotate();
         public abstract IEnumerator TakeDamage(int value);
 
-        public void Spawn() {
-            currentHealth = maxHealth;
-        }
-
         public IEnumerator Die() {
             yield return new WaitForSeconds(0.5f);
             float dieAnimationTime = 1f;
-            Destroy(this, dieAnimationTime);
+            Destroy(gameObject, dieAnimationTime);
             _animationController.PlayDieAnimation();
         }
         
         public IEnumerator DecreaseHealth(int value) {
             if (maxHealth > 0 && State != ActiveState.Dead) {
+                
                 currentHealth -= value;
+                Debug.Log($"{currentHealth}/{maxHealth}");
+
                 if (_uiController)
                     _uiController.UpdateHealthBar(currentHealth);
-                _animationController.PlayTakeDamageAnimation();
+                
+//              _animationController.PlayTakeDamageAnimation();
+                
                 if (currentHealth <= 0) {
+                    Debug.Log("Dead!");
                     currentHealth = 0;
                     State = ActiveState.Dead;
                     yield return Die();

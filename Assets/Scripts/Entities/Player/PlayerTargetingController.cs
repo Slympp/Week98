@@ -14,11 +14,13 @@ namespace Entities.Player {
 
         private PlayerEquipmentController _equipmentController;
         private CursorController _cursorController;
+        private Camera _camera;
         private bool _hasTarget;
 
         void Awake() {
             _equipmentController = GetComponent<PlayerEquipmentController>();
             _cursorController = GetComponent<CursorController>();
+            _camera = Camera.main;
         }
         
         void Update() {
@@ -40,25 +42,23 @@ namespace Entities.Player {
 
         void UpdateTarget(BaseItem activeItem) {
 
-            if (Physics.Raycast(_raycastRig.position, transform.forward, 
-                out RaycastHit hit, activeItem.GetRange(), _layerMask)) {
-
-                Debug.DrawLine(_raycastRig.position, hit.point, Color.red);
-
+            if (Physics.Raycast(_camera.ScreenPointToRay(Input.mousePosition), out RaycastHit hit, Mathf.Infinity, _layerMask)) {
                 GameObject newTarget = hit.collider.gameObject.transform.root.gameObject;
                 if (_hasTarget) {
                     if (CurrentTarget != newTarget) {
-                        SetTarget(activeItem.GetItemType(), newTarget);
+                        SetTarget(newTarget);
                     }
                 } else {
-                  SetTarget(activeItem.GetItemType(), newTarget);  
+                  SetTarget(newTarget);  
                 }
             } else if (_hasTarget) {
-               SetTarget(activeItem.GetItemType(), null);
+               SetTarget(null);
             }
+            
+            UpdateCursorIndicator(activeItem);
         }
 
-        void SetTarget(BaseItem.Type itemType, GameObject newTarget) {
+        void SetTarget(GameObject newTarget) {
             _hasTarget = newTarget != null;
 
             if (CurrentTarget != null) {
@@ -74,7 +74,14 @@ namespace Entities.Player {
             }
 
             CurrentTarget = newTarget;
-            _cursorController.UpdateCursor(itemType, CurrentTarget);
+        }
+
+        void UpdateCursorIndicator(BaseItem activeItem) {
+            float distance = Mathf.Infinity;
+            if (CurrentTarget != null) {
+                distance = Vector3.Distance(CurrentTarget.transform.position, transform.position);
+            }
+            _cursorController.UpdateCursor(activeItem.GetItemType(), CurrentTarget && distance <= activeItem.GetRange());
         }
     }
 }

@@ -1,6 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Runtime.InteropServices.WindowsRuntime;
+using System.Security.Cryptography;
+using Game;
 using Items;
 using UI.Player;
 using UnityEngine;
@@ -8,7 +10,7 @@ using UnityEngine;
 namespace Entities.Player {
     public class PlayerEquipmentController : MonoBehaviour
     {
-        [SerializeField] private List<GameObject> ItemList;
+        [HideInInspector] public List<GameObject> ItemList;
         [SerializeField] protected Transform RightHandRoot;
         [SerializeField] protected Transform LeftHandRoot;
         [SerializeField] protected Transform BackRoot;
@@ -28,21 +30,44 @@ namespace Entities.Player {
         void Awake() {
             _uiController = GameObject.FindGameObjectWithTag("LevelManager").GetComponent<PlayerUIController>();
             _cursorController = GetComponent<CursorController>();
-            _inventory = new Dictionary<BaseItem, List<GameObject>>();
         }
 
-        void Start() {
-            // TODO: REMOVE, TESTING ONLY
+        public void Init(GameManager.SerializedPlayerData playerData) {
+
+            ItemList = playerData.Inventory;
+            HasShield = playerData.HasShield;
+            
+            RefreshInventory();
+        }
+
+        public void RefreshInventory() {
+            if (_inventory != null) {
+                foreach (var item in _inventory.Values) {
+                    foreach (GameObject go in item) {
+                        Destroy(go);
+                    }
+                }
+            }
+            
+            _inventory = new Dictionary<BaseItem, List<GameObject>>();
             foreach (GameObject item in ItemList) {
                 AddItemToInventory(item);
             }
             _uiController.UpdateActionBar(_inventory);
             
-            EquipShield();
+            if (HasShield) {
+                if (HandShieldRef != null)
+                    Destroy(HandShieldRef);
+                if (BackShieldRef != null)
+                    Destroy(BackShieldRef);
+                
+                EquipShield();
+            }
 
-            // END TESTING
+            _activeItem = null;
+            SetActiveItem(typeof(SwordItem));
         }
-        
+
         void Update() {
 
             if (!CanSwapItem)
@@ -57,6 +82,10 @@ namespace Entities.Player {
             } else if (PlayerInputController.EquipRune) {
                 SetActiveItem(typeof(RuneItem));
             } 
+        }
+
+        public void AddShield() {
+            HasShield = true;
         }
 
         public void AddItemToInventory(GameObject item) {
@@ -104,7 +133,6 @@ namespace Entities.Player {
         }
 
         public void EquipShield() {
-            HasShield = true;
             HandShieldRef = Instantiate(ShieldPrefab, LeftHandRoot);
             BackShieldRef = Instantiate(ShieldPrefab, BackRoot);
             HandShieldRef.SetActive(false);
@@ -136,8 +164,10 @@ namespace Entities.Player {
         }
 
         private void ToggleActiveGameObjects(bool enable) {
-            foreach (GameObject obj in _inventory[_activeItem]) {
-                obj.SetActive(enable);
+            if (_inventory[_activeItem] != null) {
+                foreach (GameObject obj in _inventory[_activeItem]) {
+                    obj.SetActive(enable);
+                }
             }
         }
 

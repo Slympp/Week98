@@ -3,25 +3,26 @@ using UnityEngine;
 
 namespace Game.Level {
     public class Room {
-        public Vector2Int               roomCoordinate;
-        public Dictionary<string, Room> neighbors;
+        public Vector2Int               RoomCoordinate { get; }
+        public readonly Dictionary<string, Room> Neighbors;
+        public bool ExitRoom;
 
         public Room(int xCoordinate, int yCoordinate) {
-            roomCoordinate = new Vector2Int(xCoordinate, yCoordinate);
-            neighbors = new Dictionary<string, Room>();
+            RoomCoordinate = new Vector2Int(xCoordinate, yCoordinate);
+            Neighbors = new Dictionary<string, Room>();
         }
 
         public Room(Vector2Int _roomCoordinate) {
-            roomCoordinate = _roomCoordinate;
-            neighbors = new Dictionary<string, Room>();
+            RoomCoordinate = _roomCoordinate;
+            Neighbors = new Dictionary<string, Room>();
         }
         
         public List<Vector2Int> NeighborCoordinates() {
             List<Vector2Int> neighborCoordinates = new List<Vector2Int> {
-                new Vector2Int(roomCoordinate.x, roomCoordinate.y - 1),
-                new Vector2Int(roomCoordinate.x + 1, roomCoordinate.y),
-                new Vector2Int(roomCoordinate.x, roomCoordinate.y + 1),
-                new Vector2Int(roomCoordinate.x - 1, roomCoordinate.y)
+                new Vector2Int(RoomCoordinate.x, RoomCoordinate.y - 1),
+                new Vector2Int(RoomCoordinate.x + 1, RoomCoordinate.y),
+                new Vector2Int(RoomCoordinate.x, RoomCoordinate.y + 1),
+                new Vector2Int(RoomCoordinate.x - 1, RoomCoordinate.y)
             };
 
             return neighborCoordinates;
@@ -29,23 +30,24 @@ namespace Game.Level {
         
         public void Connect(Room neighbor) {
             string direction = "";
-            if (neighbor.roomCoordinate.y < roomCoordinate.y) {
+            if (neighbor.RoomCoordinate.y < RoomCoordinate.y) {
                 direction = "N";
             }
-            if (neighbor.roomCoordinate.x > roomCoordinate.x) {
+            if (neighbor.RoomCoordinate.x > RoomCoordinate.x) {
                 direction = "E";
             }   
-            if (neighbor.roomCoordinate.y > roomCoordinate.y) {
+            if (neighbor.RoomCoordinate.y > RoomCoordinate.y) {
                 direction = "S";
             }
-            if (neighbor.roomCoordinate.x < roomCoordinate.x) {
+            if (neighbor.RoomCoordinate.x < RoomCoordinate.x) {
                 direction = "W";
             }
-            neighbors.Add(direction, neighbor);
+            Neighbors.Add(direction, neighbor);
         }
         
         public void InitController(RoomController controller) {
-            foreach (KeyValuePair<string, Room> neighborPair in neighbors) {
+            controller.ExitRoom = ExitRoom;
+            foreach (KeyValuePair<string, Room> neighborPair in Neighbors) {
                 switch (neighborPair.Key) {
                     case "N":
                         controller.North = true;
@@ -61,6 +63,10 @@ namespace Game.Level {
                         break;
                 }
             }
+        }
+
+        public int GetDistanceFromOrigin(Vector2Int origin) {
+            return Mathf.Abs(RoomCoordinate.x - origin.x) + Mathf.Abs(RoomCoordinate.y - origin.y);
         }
     }
 }
